@@ -1,0 +1,1 @@
+export type Page = "sessionControl" | "player" | "settings" | "myLists";
