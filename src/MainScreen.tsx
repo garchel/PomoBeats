@@ -18,10 +18,10 @@ function MainContent() {
         return <SavedListsPanel/>
       case "player":
         return (
-          <>
+          <div className="flex h-full min-h-0 flex-col">
             <PomoPlayer />
-            <SessionPanel />
-          </>
+            <SessionPanel compact />
+          </div>
         ) 
       case "sessionControl":
       default:
@@ -35,18 +35,18 @@ function MainContent() {
   }
 
   return (
-    <>
+    <div className="flex h-full w-full flex-col">
       <Header />
-        {renderContent()}
+      <div className="min-h-0 flex-1">{renderContent()}</div>
       <BottomNav/>
-    </>
+    </div>
   );
 }
 
 export default function MainScreen() {
   return (
     <PomoProvider>
-      <div className="w-[420px] h-[640px] mx-auto p-4 bg-white rounded-3xl shadow-lg flex flex-col items-center">
+      <div className="mx-auto flex h-[640px] w-[420px] flex-col overflow-hidden rounded-3xl bg-white p-4 shadow-lg">
         <MainContent />
       </div>
     </PomoProvider>

@@ -1,64 +1,79 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+﻿import { app, BrowserWindow, ipcMain } from "electron";
 import Store from "electron-store";
-import path from "path";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-let win;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-//Inicializa o store
+let win = null;
+
 const store = new Store({
   defaults: {
     settings: {
-    autoCheckTasks: false,
-    autoStartBreaks: false,
-    autoStartPomos: false,
-    selectedAlarm: "Beep",
-    customAlarmPath: "",
-    selectedIntervalTrack: "Track 1",
-    customIntervalTrackPath: "",
+      autoCheckTasks: true,
+      autoStartBreaks: false,
+      autoStartPomos: false,
+      alarmEnabled: true,
+      selectedAlarm: "Beep",
+      alarmVolume: 60,
+      customAlarm: false,
+      customAlarmPath: "",
+      studyMusicEnabled: true,
+      studyMusicSource: "generated",
+      studyRadioCategory: "lofi",
+      selectedStudyTrack: "Track 1",
+      studyTrackVolume: 35,
+      customStudyTrackEnabled: false,
+      customStudyTrackPath: "",
+      intervalMusicEnabled: true,
+      intervalMusicSource: "generated",
+      intervalRadioCategory: "lofi",
+      selectedIntervalTrack: "Track 1",
+      intervalTrackVolume: 35,
+      customIntervalTrackEnabled: false,
+      customIntervalTrackPath: "",
     },
   },
 });
 
-// Função que cria a janela principal
 function createWindow() {
   win = new BrowserWindow({
     width: 1000,
     height: 700,
     webPreferences: {
-      nodeIntegration: true, //manter por enquanto (permite usar ipcRenderer direto)
-      contextIsolation: false, 
+      preload: path.join(__dirname, "preload.js"),
+      nodeIntegration: false,
+      contextIsolation: true,
     },
-  })
+  });
 
-  const devUrl = "http://localhost:5173";
-  win.loadURL(devUrl);
+  if (app.isPackaged) {
+    win.loadFile(path.join(__dirname, "../dist/index.html"));
+  } else {
+    win.loadURL("http://localhost:5173");
+  }
 
   win.on("closed", () => {
     win = null;
   });
 }
 
-// Cria a janela quando o app estiver pronto
-app.on("ready", createWindow);
+app.whenReady().then(createWindow);
 
-// Sai quando todas as janelas forem fechadas
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
-})
-
-app.on("activate", () => {
-  if (win === null) createWindow();
-})
-
-// IPC Handlers
-
-// Pede as configurações atuais
-ipcMain.handle("get-settings", () => {
-  return store.get("settings");
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
 });
 
-//Atualiza as configurações
-ipcMain.handle("set-settings", (event, newSettings) => {
+app.on("activate", () => {
+  if (win === null) {
+    createWindow();
+  }
+});
+
+ipcMain.handle("get-settings", () => store.get("settings"));
+ipcMain.handle("set-settings", (_event, newSettings) => {
   store.set("settings", newSettings);
-  return true;
-})
+});

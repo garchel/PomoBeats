@@ -1,16 +1,12 @@
-import { SettingsState } from '../context/PomoContext';
+﻿import type { SettingsState } from "./pomo";
 
 interface ElectronAPI {
-    // Função que retorna as configurações. O tipo Promise é porque ipcRenderer.invoke é assíncrono.
-    getSettings: () => Promise<SettingsState>;
-
-    // Função que recebe as configurações a serem salvas.
-    setSettings: (settings: SettingsState) => Promise<void>; // O 'main.js' retorna true, mas podemos tipar como void para simplicidade.
+  getSettings: () => Promise<SettingsState>;
+  setSettings: (settings: SettingsState) => Promise<void>;
 }
 
-// Declara o objeto global 'electron' que será injetado pelo preload script
 declare global {
-    interface Window {
-        electron: ElectronAPI;
-    }
+  interface Window {
+    electron?: ElectronAPI;
+  }
 }

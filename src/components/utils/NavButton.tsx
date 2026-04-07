@@ -1,24 +1,33 @@
+import type { ComponentType } from "react";
+
 const NavButton = ({
   icon: Icon,
   label,
   ClassName,
   onClick,
-  iconSize
+  iconSize,
+  active = false,
 }: {
-  icon: any;
+  icon: ComponentType<{ size?: number; "aria-hidden"?: boolean }>;
   label?: string;
-  ClassName?: string,
+  ClassName?: string;
   onClick?: () => void;
   iconSize?: number;
+  active?: boolean;
 }) => (
   <button
     onClick={onClick}
-    className={`flex flex-col items-center hover:text-red-500 focus:outline-none rounded-md ${ClassName}`}
+    className={`flex min-w-0 flex-1 flex-col items-center rounded-md px-0.5 py-1 transition-colors focus:outline-none ${
+      active ? "text-red-500" : "text-gray-600 hover:text-red-500"
+    } ${ClassName ?? ""}`}
     aria-label={label}
+    type="button"
   >
-    <Icon size={iconSize? iconSize : 22} aria-hidden />
-    <span className="text-xs text-nowrap">{label}</span>
+    <Icon size={iconSize ? iconSize : 22} aria-hidden />
+    <span className="mt-1 max-w-full truncate text-center text-[10px] leading-tight sm:text-[11px]">
+      {label}
+    </span>
   </button>
 );
 
-export default  NavButton 
+export default NavButton;

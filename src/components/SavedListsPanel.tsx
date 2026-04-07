@@ -1,66 +1,90 @@
-import { useCallback, useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Download, Trash2 } from "lucide-react";
+import { Download, Trash2, Upload } from "lucide-react";
 import { usePomo } from "../context/PomoContext";
-import type { SessionObject } from "../context/PomoContext";
 import { FaAngleLeft } from "react-icons/fa";
 import NavButton from "./utils/NavButton";
 import toast from "react-hot-toast";
-
-interface SavedListItem {
-  title: string;
-  sessions: number;
-  timestamp: string;
-}
+import {
+  deleteSessionFromStorage,
+  formatDurationLabel,
+  getSavedSessions,
+  importSessionToStorage,
+  loadSessionByTitle,
+  normalizeSession,
+} from "../lib/sessionStorage";
+import type { SavedSessionMetadata } from "../types/pomo";
 
 export default function SavedListsPanel() {
   const { setPage, setSession } = usePomo();
+  const [savedLists, setSavedLists] = useState<SavedSessionMetadata[]>([]);
 
-  const [savedLists, setSavedLists] = useState<SavedListItem[]>([]);
-
-  useEffect(() => {
-    // A chave do localStorage deve ser a mesma utilizada para salvar a lista.
-    // No seu último código, você mudou para 'savedPomoSessions'.
-    // Mantenha a consistência.
-    const savedListsRaw = localStorage.getItem("savedPomoSessions");
-    const lists: SavedListItem[] = savedListsRaw ? JSON.parse(savedListsRaw) : [];
-    setSavedLists(lists);
+  const refreshSavedLists = useCallback(() => {
+    setSavedLists(getSavedSessions());
   }, []);
 
+  useEffect(() => {
+    refreshSavedLists();
+  }, [refreshSavedLists]);
+
   const handleLoad = useCallback(
-    (list: SavedListItem) => {
-      const parsedList: SessionObject = JSON.parse(
-        localStorage.getItem(list.title) || "{}"
-      );
-      if (parsedList.intervals?.length) {
+    (list: SavedSessionMetadata) => {
+      const parsedList = loadSessionByTitle(list.title);
+
+      if (parsedList) {
         setSession(parsedList);
         setPage("sessionControl");
-        toast.success(`Sessão "${list.title}" carregada com sucesso! ✨`);
+        toast.success(`Sessao "${list.title}" carregada com sucesso.`);
       } else {
-        // CORREÇÃO: substitui o alert por toast.error para manter a consistência da UI
-        toast.error("Não foi possível carregar esta lista. 😕");
+        toast.error("Nao foi possivel carregar esta sessao.");
       }
     },
-    [setSession, setPage]
+    [setPage, setSession]
   );
 
   const handleDelete = useCallback(
-    (list: SavedListItem) => {
-      localStorage.removeItem(list.title);
-
-      // A chave do localStorage deve ser a mesma utilizada para salvar a lista
-      const savedSessionsRaw = localStorage.getItem("savedPomoSessions");
-      const existingSessions = savedSessionsRaw ? JSON.parse(savedSessionsRaw) : [];
-
-      const allLists = existingSessions.filter((l: SavedListItem) => l.title !== list.title);
-
-      localStorage.setItem("savedPomoSessions", JSON.stringify(allLists));
-      setSavedLists(allLists);
-
-      // ADIÇÃO: toast para notificar o sucesso da exclusão
-      toast.success(`Sessão "${list.title}" excluída com sucesso! 🗑️`);
+    (list: SavedSessionMetadata) => {
+      deleteSessionFromStorage(list.title);
+      refreshSavedLists();
+      toast.success(`Sessao "${list.title}" excluida com sucesso.`);
     },
-    [] // Removi savedLists pois a nova implementação busca a lista atualizada do localStorage
+    [refreshSavedLists]
+  );
+
+  const handleImport = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+
+      if (!file) {
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (loadEvent) => {
+        try {
+          const parsed = JSON.parse(loadEvent.target?.result as string);
+          const normalized = normalizeSession(parsed);
+
+          if (!normalized) {
+            toast.error("Arquivo invalido. Use uma sessao exportada pelo app.");
+            return;
+          }
+
+          const importedSession = importSessionToStorage(normalized);
+          refreshSavedLists();
+          setSession(importedSession);
+          setPage("sessionControl");
+          toast.success(`Sessao "${importedSession.title}" importada com sucesso.`);
+        } catch {
+          toast.error("Nao foi possivel ler o arquivo selecionado.");
+        } finally {
+          event.target.value = "";
+        }
+      };
+
+      reader.readAsText(file);
+    },
+    [refreshSavedLists, setPage, setSession]
   );
 
   return (
@@ -72,39 +96,47 @@ export default function SavedListsPanel() {
     >
       <NavButton icon={FaAngleLeft} onClick={() => setPage("sessionControl")} ClassName="self-start" />
 
-      <h2 className="text-2xl text-center mb-5 font-semibold text-gray-800">
-        Sessões Salvas
-      </h2>
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <h2 className="text-2xl font-semibold text-gray-800">Sessoes salvas</h2>
+        <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-red-600">
+          <Upload size={16} />
+          Importar sessao
+          <input
+            type="file"
+            accept="application/json"
+            className="hidden"
+            onChange={handleImport}
+          />
+        </label>
+      </div>
 
       {savedLists.length === 0 ? (
-        <p className="text-gray-600 text-center">
-          Você ainda não possui sessões salvas.
-        </p>
+        <p className="text-center text-gray-600">Voce ainda nao possui sessoes salvas.</p>
       ) : (
         <ul className="flex flex-col gap-4">
           {savedLists.map((list) => (
             <li
               key={list.title}
-              className="flex justify-between items-center border-b border-gray-200 py-2 hover:bg-gray-50 transition-colors rounded"
+              className="flex items-center justify-between rounded border-b border-gray-200 py-2 transition-colors hover:bg-gray-50"
             >
               <div>
                 <span className="font-medium text-gray-800">{list.title}</span>
                 <p className="text-xs text-gray-500">
-                  {list.sessions} sessões • {list.timestamp}
+                  {list.intervalCount} intervalos • {formatDurationLabel(list.totalDuration)} • {new Date(list.updatedAt).toLocaleDateString("pt-BR")}
                 </p>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => handleLoad(list)}
                   className="p-1 hover:text-green-500"
-                  title="Carregar lista"
+                  title="Carregar sessao"
                 >
                   <Download size={18} />
                 </button>
                 <button
                   onClick={() => handleDelete(list)}
                   className="p-1 hover:text-red-500"
-                  title="Deletar lista"
+                  title="Excluir sessao"
                 >
                   <Trash2 size={18} />
                 </button>
