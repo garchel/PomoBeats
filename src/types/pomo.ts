@@ -3,6 +3,11 @@ export type MusicSource = "generated" | "radio" | "custom";
 export type RadioCategory = "lofi" | "pop" | "anime" | "kpop" | "rock";
 export type AppLanguage = "pt-BR" | "en-US";
 
+export interface WindowHotkeys {
+  toggleClickThrough: string;
+  focusWindow: string;
+}
+
 export interface Interval {
   name: string;
   duration: number;
@@ -26,6 +31,10 @@ export interface SettingsState {
   autoCheckTasks: boolean;
   autoStartBreaks: boolean;
   autoStartPomos: boolean;
+  windowOpacity: number;
+  clickThroughEnabled: boolean;
+  minimizeToTray: boolean;
+  hotkeys: WindowHotkeys;
   alarmEnabled: boolean;
   selectedAlarm: string;
   alarmVolume: number;

@@ -3,7 +3,7 @@ import MainScreen from "./MainScreen.js";
 
 function App() {
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-100">
+    <div className="h-screen overflow-hidden">
       <MainScreen />
     </div>
   );

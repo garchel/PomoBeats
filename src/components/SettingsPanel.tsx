@@ -92,6 +92,36 @@ export default function SettingsPanel() {
         />
       </SettingsCard>
 
+      <SettingsCard title={t("settings.window")}>
+        <div className="flex flex-col gap-3">
+          <RangeRow
+            label={t("settings.opacity")}
+            helpText={t("settings.opacityHelp")}
+            value={settings.windowOpacity}
+            min={35}
+            max={100}
+            step={5}
+            onChange={(value) => updateSettings({ windowOpacity: value })}
+          />
+          <ToggleRow
+            label={t("settings.minimizeToTray")}
+            helpText={t("settings.minimizeToTrayHelp")}
+            enabled={settings.minimizeToTray}
+            onChange={() => updateSettings({ minimizeToTray: !settings.minimizeToTray })}
+          />
+          <ReadOnlyRow
+            label={t("settings.clickThroughHotkey")}
+            value={settings.hotkeys.toggleClickThrough}
+            helpText={t("settings.clickThroughHelp")}
+          />
+          <ReadOnlyRow
+            label={t("settings.focusHotkey")}
+            value={settings.hotkeys.focusWindow}
+            helpText={t("settings.focusHotkeyHelp")}
+          />
+        </div>
+      </SettingsCard>
+
       <SettingsCard title={t("settings.automation")}>
         <div className="flex flex-col gap-1">
           <ToggleRow label={t("settings.autoCheckTasks")} helpText={t("settings.autoCheckTasksHelp")} enabled={settings.autoCheckTasks} onChange={() => updateSettings({ autoCheckTasks: !settings.autoCheckTasks })} />
@@ -249,11 +279,17 @@ function RangeRow({
   label,
   helpText,
   value,
+  min = 0,
+  max = 100,
+  step = 10,
   onChange,
 }: {
   label: string;
   helpText?: string;
   value: number;
+  min?: number;
+  max?: number;
+  step?: number;
   onChange: (value: number) => void;
 }) {
   return (
@@ -262,15 +298,34 @@ function RangeRow({
       <div className="flex w-44 items-center gap-2.5">
         <input
           type="range"
-          min={0}
-          max={100}
-          step={10}
+          min={min}
+          max={max}
+          step={step}
           value={value}
           onChange={(event) => onChange(Number(event.target.value))}
           className="w-full accent-red-500"
         />
         <span className="w-9 text-right text-xs text-gray-500">{value}%</span>
       </div>
+    </div>
+  );
+}
+
+function ReadOnlyRow({
+  label,
+  value,
+  helpText,
+}: {
+  label: string;
+  value: string;
+  helpText?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-2xl bg-gray-50/65 px-3 py-2.5">
+      <LabelWithHelp label={label} helpText={helpText} />
+      <code className="rounded-xl bg-slate-900 px-2.5 py-1.5 text-xs text-white">
+        {value}
+      </code>
     </div>
   );
 }

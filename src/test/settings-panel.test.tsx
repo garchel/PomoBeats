@@ -91,6 +91,13 @@ describe("SettingsPanel", () => {
       autoCheckTasks: true,
       autoStartBreaks: false,
       autoStartPomos: false,
+      windowOpacity: 92,
+      clickThroughEnabled: false,
+      minimizeToTray: true,
+      hotkeys: {
+        toggleClickThrough: "CommandOrControl+Shift+X",
+        focusWindow: "CommandOrControl+Shift+Space",
+      },
       alarmEnabled: true,
       selectedAlarm: "Beep",
       alarmVolume: 60,
@@ -133,6 +140,13 @@ describe("SettingsPanel", () => {
       autoCheckTasks: false,
       autoStartBreaks: true,
       autoStartPomos: true,
+      windowOpacity: 70,
+      clickThroughEnabled: true,
+      minimizeToTray: false,
+      hotkeys: {
+        toggleClickThrough: "Alt+Shift+X",
+        focusWindow: "Alt+Shift+Space",
+      },
       alarmEnabled: false,
       selectedAlarm: "Bell",
       alarmVolume: 0,
@@ -160,6 +174,10 @@ describe("SettingsPanel", () => {
       const snapshot = screen.getByTestId("settings-snapshot");
       expect(snapshot).toHaveTextContent('"alarmEnabled":false');
       expect(snapshot).toHaveTextContent('"language":"pt-BR"');
+      expect(snapshot).toHaveTextContent('"windowOpacity":70');
+      expect(snapshot).toHaveTextContent('"clickThroughEnabled":true');
+      expect(snapshot).toHaveTextContent('"minimizeToTray":false');
+      expect(snapshot).toHaveTextContent('"toggleClickThrough":"Alt+Shift+X"');
       expect(snapshot).toHaveTextContent('"selectedAlarm":"Bell"');
       expect(snapshot).toHaveTextContent('"customAlarmPath":"blob:alarm.mp3"');
       expect(snapshot).toHaveTextContent('"studyMusicEnabled":false');
@@ -188,6 +206,7 @@ describe("SettingsPanel", () => {
     await user.click(getSwitchForLabel("Verificação automática de tarefas"));
     await user.click(getSwitchForLabel("Iniciar intervalos automaticamente"));
     await user.click(getSwitchForLabel("Iniciar pomos automaticamente"));
+    await user.click(getSwitchForLabel("Minimizar para a bandeja"));
     await user.click(getSwitchForLabel("Alarme"));
     await user.click(getSwitchForLabel("Música de estudo"));
     await user.click(getSwitchForLabel("Música de intervalo"));
@@ -202,9 +221,10 @@ describe("SettingsPanel", () => {
     await user.click(getSwitchForDuplicateLabel("Usar arquivo customizado", 0));
 
     const sliders = screen.getAllByRole("slider");
-    fireEvent.input(sliders[0], { target: { value: "0" } });
-    fireEvent.input(sliders[1], { target: { value: "20" } });
-    fireEvent.input(sliders[2], { target: { value: "10" } });
+    fireEvent.input(sliders[0], { target: { value: "80" } });
+    fireEvent.input(sliders[1], { target: { value: "0" } });
+    fireEvent.input(sliders[2], { target: { value: "20" } });
+    fireEvent.input(sliders[3], { target: { value: "10" } });
 
     fireEvent.click(screen.getByText("set-alarm-bell"));
     fireEvent.click(screen.getByText("set-study-track-2"));
@@ -226,6 +246,8 @@ describe("SettingsPanel", () => {
       expect(snapshot).toContain('"language":"pt-BR"');
       expect(snapshot).toContain('"autoStartBreaks":true');
       expect(snapshot).toContain('"autoStartPomos":true');
+      expect(snapshot).toContain('"windowOpacity":80');
+      expect(snapshot).toContain('"minimizeToTray":false');
       expect(snapshot).toContain('"alarmEnabled":true');
       expect(snapshot).toContain('"selectedAlarm":"Bell"');
       expect(snapshot).toContain('"alarmVolume":0');
@@ -253,6 +275,13 @@ describe("SettingsPanel", () => {
       autoCheckTasks: false,
       autoStartBreaks: true,
       autoStartPomos: true,
+      windowOpacity: 80,
+      clickThroughEnabled: false,
+      minimizeToTray: false,
+      hotkeys: {
+        toggleClickThrough: "CommandOrControl+Shift+X",
+        focusWindow: "CommandOrControl+Shift+Space",
+      },
       alarmEnabled: true,
       selectedAlarm: "Bell",
       alarmVolume: 0,
@@ -276,6 +305,7 @@ describe("SettingsPanel", () => {
 
     expect(screen.getByText("Categoria")).toBeInTheDocument();
     expect(screen.queryAllByText("Usar arquivo customizado")).toHaveLength(2);
+    expect(screen.getByText("Hotkey de click-through")).toBeInTheDocument();
   });
 
   it("stores the selected language", async () => {

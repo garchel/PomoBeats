@@ -22,6 +22,19 @@ const translations = {
     "settings.languageHelp": "Muda imediatamente os textos do app e o formato local de datas.",
     "settings.language.pt-BR": "Português (Brasil)",
     "settings.language.en-US": "English",
+    "settings.window": "Janela",
+    "settings.opacity": "Opacidade",
+    "settings.opacityHelp":
+      "Controla a transparencia da janela desktop. Em valores baixos, o app fica menos intrusivo.",
+    "settings.minimizeToTray": "Minimizar para a bandeja",
+    "settings.minimizeToTrayHelp":
+      "Quando ativo, o app sai da barra de tarefas ao minimizar e continua rodando na bandeja.",
+    "settings.clickThroughHotkey": "Hotkey de click-through",
+    "settings.clickThroughHelp":
+      "Alterna se a janela recebe cliques. Use este atalho para deixar o app por cima sem bloquear a tela.",
+    "settings.focusHotkey": "Hotkey para focar a janela",
+    "settings.focusHotkeyHelp":
+      "Restaura e traz o app para frente mesmo se ele estiver minimizado ou oculto na bandeja.",
     "settings.automation": "Automação",
     "settings.sound": "Som",
     "settings.autoCheckTasks": "Verificação automática de tarefas",
@@ -159,6 +172,19 @@ const translations = {
     "settings.languageHelp": "Changes the app text and the local date format immediately.",
     "settings.language.pt-BR": "Portuguese (Brazil)",
     "settings.language.en-US": "English",
+    "settings.window": "Window",
+    "settings.opacity": "Opacity",
+    "settings.opacityHelp":
+      "Controls the desktop window transparency. Lower values make the app less intrusive.",
+    "settings.minimizeToTray": "Minimize to tray",
+    "settings.minimizeToTrayHelp":
+      "When enabled, minimizing removes the app from the taskbar while it keeps running in the tray.",
+    "settings.clickThroughHotkey": "Click-through hotkey",
+    "settings.clickThroughHelp":
+      "Toggles whether the window receives mouse clicks. Use it to keep the app on top without blocking the screen.",
+    "settings.focusHotkey": "Focus window hotkey",
+    "settings.focusHotkeyHelp":
+      "Restores and brings the app to the front even if it is minimized or hidden in the tray.",
     "settings.automation": "Automation",
     "settings.sound": "Sound",
     "settings.autoCheckTasks": "Auto-check tasks",

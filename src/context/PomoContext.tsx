@@ -52,6 +52,9 @@ interface PomoContextType {
   language: SettingsState["language"];
   t: (key: TranslationKey, values?: Record<string, string | number>) => string;
   updateSettings: (newSettings: Partial<SettingsState>) => void;
+  toggleWindowClickThrough: () => Promise<void>;
+  minimizeWindow: () => Promise<void>;
+  closeWindow: () => Promise<void>;
   currentPage: Page;
   setPage: (page: Page) => void;
 }
@@ -63,6 +66,13 @@ const DEFAULT_SETTINGS: SettingsState = {
   autoCheckTasks: true,
   autoStartBreaks: false,
   autoStartPomos: false,
+  windowOpacity: 92,
+  clickThroughEnabled: false,
+  minimizeToTray: true,
+  hotkeys: {
+    toggleClickThrough: "CommandOrControl+Shift+X",
+    focusWindow: "CommandOrControl+Shift+Space",
+  },
   alarmEnabled: true,
   selectedAlarm: "Beep",
   alarmVolume: 60,
@@ -83,6 +93,18 @@ const DEFAULT_SETTINGS: SettingsState = {
   customIntervalTrackEnabled: false,
   customIntervalTrackPath: "",
 };
+
+const mergeSettings = (
+  currentSettings: SettingsState,
+  nextSettings?: Partial<SettingsState>
+): SettingsState => ({
+  ...currentSettings,
+  ...(nextSettings ?? {}),
+  hotkeys: {
+    ...currentSettings.hotkeys,
+    ...(nextSettings?.hotkeys ?? {}),
+  },
+});
 
 export const PomoProvider = ({ children }: { children: ReactNode }) => {
   const [intervals, setIntervals] = useState<Interval[]>([]);
@@ -243,7 +265,7 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
 
   const updateSettings = useCallback((newSettings: Partial<SettingsState>) => {
     setSettings((prev) => {
-      const updatedSettings = { ...prev, ...newSettings };
+      const updatedSettings = mergeSettings(prev, newSettings);
 
       if (window.electron?.setSettings) {
         window.electron.setSettings(updatedSettings).catch((error) => {
@@ -253,6 +275,31 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
 
       return updatedSettings;
     });
+  }, []);
+
+  const toggleWindowClickThrough = useCallback(async () => {
+    if (!window.electron?.toggleClickThrough) {
+      return;
+    }
+
+    const nextWindowState = await window.electron.toggleClickThrough();
+
+    setSettings((prev) =>
+      mergeSettings(prev, {
+        clickThroughEnabled: nextWindowState.clickThroughEnabled,
+        windowOpacity: nextWindowState.windowOpacity,
+        minimizeToTray: nextWindowState.minimizeToTray,
+        hotkeys: nextWindowState.hotkeys,
+      })
+    );
+  }, []);
+
+  const minimizeWindow = useCallback(async () => {
+    await window.electron?.minimizeMainWindow?.();
+  }, []);
+
+  const closeWindow = useCallback(async () => {
+    await window.electron?.closeMainWindow?.();
   }, []);
 
   const startPlayer = useCallback(() => {
@@ -459,7 +506,7 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
       window.electron
         .getSettings()
         .then((persistedSettings) => {
-          setSettings((prev) => ({ ...prev, ...persistedSettings }));
+          setSettings((prev) => mergeSettings(prev, persistedSettings));
         })
         .catch((error) => {
           console.error("Erro ao carregar configuracoes do Electron:", error);
@@ -467,6 +514,23 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
         });
     }
   }, [t]);
+
+  useEffect(() => {
+    const unsubscribe = window.electron?.onWindowStateChanged?.((windowState) => {
+      setSettings((prev) =>
+        mergeSettings(prev, {
+          clickThroughEnabled: windowState.clickThroughEnabled,
+          windowOpacity: windowState.windowOpacity,
+          minimizeToTray: windowState.minimizeToTray,
+          hotkeys: windowState.hotkeys,
+        })
+      );
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.lang = getLocale(language);
@@ -518,6 +582,9 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
         language,
         t,
         updateSettings,
+        toggleWindowClickThrough,
+        minimizeWindow,
+        closeWindow,
         currentPage,
         setPage,
       }}

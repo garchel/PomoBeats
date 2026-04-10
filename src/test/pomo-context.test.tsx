@@ -46,6 +46,13 @@ describe("PomoContext player transitions", () => {
         autoCheckTasks: true,
         autoStartBreaks: false,
         autoStartPomos: false,
+        windowOpacity: 92,
+        clickThroughEnabled: false,
+        minimizeToTray: true,
+        hotkeys: {
+          toggleClickThrough: "CommandOrControl+Shift+X",
+          focusWindow: "CommandOrControl+Shift+Space",
+        },
         alarmEnabled: true,
         selectedAlarm: "Beep",
         alarmVolume: 60,
