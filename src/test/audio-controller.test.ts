@@ -14,6 +14,7 @@ interface TestRadioCandidate {
 }
 
 const createSettings = (): SettingsState => ({
+  language: "pt-BR",
   autoCheckTasks: true,
   autoStartBreaks: false,
   autoStartPomos: false,

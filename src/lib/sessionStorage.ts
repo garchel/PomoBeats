@@ -1,8 +1,10 @@
 import type {
+  AppLanguage,
   Interval,
   SavedSessionMetadata,
   SessionObject,
 } from "../types/pomo";
+import { formatLocalizedDuration } from "./i18n";
 
 const SAVED_SESSIONS_KEY = "savedPomoSessions";
 const SESSION_KEY_PREFIX = "pomoSession:";
@@ -15,6 +17,32 @@ type LegacySavedListItem = {
   updatedAt?: unknown;
   totalDuration?: unknown;
   intervalCount?: unknown;
+};
+
+const isElectronSessionApiAvailable = () =>
+  Boolean(
+    window.electron?.getSavedSessions &&
+      window.electron?.getSavedSession &&
+      window.electron?.saveSavedSession &&
+      window.electron?.deleteSavedSession &&
+      window.electron?.replaceSavedSessions
+  );
+
+const getElectronSessionApi = () => {
+  if (!isElectronSessionApiAvailable()) {
+    return null;
+  }
+
+  return window.electron as Required<
+    Pick<
+      NonNullable<typeof window.electron>,
+      | "getSavedSessions"
+      | "getSavedSession"
+      | "saveSavedSession"
+      | "deleteSavedSession"
+      | "replaceSavedSessions"
+    >
+  >;
 };
 
 const isInterval = (value: unknown): value is Interval => {
@@ -69,20 +97,10 @@ export const normalizeSession = (value: unknown): SessionObject | null => {
   };
 };
 
-export const formatDurationLabel = (totalMinutes: number) => {
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours === 0) {
-    return `${minutes}min`;
-  }
-
-  if (minutes === 0) {
-    return `${hours}h`;
-  }
-
-  return `${hours}h ${minutes}min`;
-};
+export const formatDurationLabel = (
+  totalMinutes: number,
+  language: AppLanguage = "pt-BR"
+) => formatLocalizedDuration(language, totalMinutes);
 
 export const getSessionTotalDuration = (session: SessionObject) =>
   session.intervals.reduce((sum, interval) => sum + interval.duration, 0);
@@ -135,7 +153,9 @@ const normalizeSavedSessionMetadata = (
   };
 };
 
-const parseSavedSessionIndex = (): SavedSessionMetadata[] => {
+const getSessionStorageKey = (title: string) => `${SESSION_KEY_PREFIX}${title}`;
+
+const parseLegacySavedSessionIndex = (): SavedSessionMetadata[] => {
   const raw = localStorage.getItem(SAVED_SESSIONS_KEY);
 
   if (!raw) {
@@ -157,16 +177,14 @@ const parseSavedSessionIndex = (): SavedSessionMetadata[] => {
   }
 };
 
-const writeSavedSessionIndex = (items: SavedSessionMetadata[]) => {
+const writeLegacySavedSessionIndex = (items: SavedSessionMetadata[]) => {
   localStorage.setItem(SAVED_SESSIONS_KEY, JSON.stringify(items));
 };
 
-const getSessionStorageKey = (title: string) => `${SESSION_KEY_PREFIX}${title}`;
+const getLegacySavedSessions = () =>
+  parseLegacySavedSessionIndex().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
-export const getSavedSessions = () =>
-  parseSavedSessionIndex().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-
-export const loadSessionByTitle = (title: string): SessionObject | null => {
+const loadLegacySessionByTitle = (title: string): SessionObject | null => {
   const namespaced = localStorage.getItem(getSessionStorageKey(title));
   const legacy = localStorage.getItem(title);
   const raw = namespaced ?? legacy;
@@ -182,9 +200,9 @@ export const loadSessionByTitle = (title: string): SessionObject | null => {
   }
 };
 
-export const saveSessionToStorage = (session: SessionObject) => {
+const saveLegacySession = (session: SessionObject) => {
   const metadata = createSessionMetadata(session);
-  const index = getSavedSessions();
+  const index = getLegacySavedSessions();
   const existingIndex = index.findIndex((item) => item.title === session.title);
 
   if (existingIndex >= 0) {
@@ -193,21 +211,87 @@ export const saveSessionToStorage = (session: SessionObject) => {
     index.push(metadata);
   }
 
-  writeSavedSessionIndex(index);
+  writeLegacySavedSessionIndex(index);
   localStorage.setItem(getSessionStorageKey(session.title), JSON.stringify(session));
 };
 
-export const deleteSessionFromStorage = (title: string) => {
+const deleteLegacySession = (title: string) => {
   localStorage.removeItem(getSessionStorageKey(title));
   localStorage.removeItem(title);
 
-  const index = getSavedSessions().filter((item) => item.title !== title);
-  writeSavedSessionIndex(index);
+  const index = getLegacySavedSessions().filter((item) => item.title !== title);
+  writeLegacySavedSessionIndex(index);
 };
 
-export const resolveImportedSessionTitle = (baseTitle: string) => {
+const getLegacySessionPayloads = () => {
+  const index = getLegacySavedSessions();
+  const items: Record<string, SessionObject> = {};
+
+  index.forEach((metadata) => {
+    const session = loadLegacySessionByTitle(metadata.title);
+
+    if (session) {
+      items[metadata.title] = session;
+    }
+  });
+
+  return {
+    index: index.filter((metadata) => Boolean(items[metadata.title])),
+    items,
+  };
+};
+
+export const listSavedSessions = async () => {
+  const electronApi = getElectronSessionApi();
+
+  if (electronApi) {
+    const sessions = await electronApi.getSavedSessions();
+    return [...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  return getLegacySavedSessions();
+};
+
+export const loadSavedSession = async (title: string): Promise<SessionObject | null> => {
+  const electronApi = getElectronSessionApi();
+
+  if (electronApi) {
+    const session = await electronApi.getSavedSession(title);
+    return normalizeSession(session);
+  }
+
+  return loadLegacySessionByTitle(title);
+};
+
+export const saveSessionRecord = async (session: SessionObject) => {
+  const metadata = createSessionMetadata(session);
+  const electronApi = getElectronSessionApi();
+
+  if (electronApi) {
+    await electronApi.saveSavedSession(session, metadata);
+    return;
+  }
+
+  saveLegacySession(session);
+};
+
+export const deleteSessionRecord = async (title: string) => {
+  const electronApi = getElectronSessionApi();
+
+  if (electronApi) {
+    await electronApi.deleteSavedSession(title);
+    return;
+  }
+
+  deleteLegacySession(title);
+};
+
+const resolveImportedSessionTitleFromList = (
+  baseTitle: string,
+  sessions: SavedSessionMetadata[]
+) => {
   const trimmedBaseTitle = baseTitle.trim();
-  const existingTitles = new Set(getSavedSessions().map((item) => item.title));
+  const existingTitles = new Set(sessions.map((item) => item.title));
 
   if (!existingTitles.has(trimmedBaseTitle)) {
     return trimmedBaseTitle;
@@ -224,8 +308,9 @@ export const resolveImportedSessionTitle = (baseTitle: string) => {
   return candidate;
 };
 
-export const importSessionToStorage = (session: SessionObject) => {
-  const resolvedTitle = resolveImportedSessionTitle(session.title);
+export const importSessionRecord = async (session: SessionObject) => {
+  const savedSessions = await listSavedSessions();
+  const resolvedTitle = resolveImportedSessionTitleFromList(session.title, savedSessions);
   const resolvedSession =
     resolvedTitle === session.title
       ? session
@@ -234,7 +319,30 @@ export const importSessionToStorage = (session: SessionObject) => {
           title: resolvedTitle,
         };
 
-  saveSessionToStorage(resolvedSession);
+  await saveSessionRecord(resolvedSession);
 
   return resolvedSession;
+};
+
+export const migrateLegacySessionsToElectron = async () => {
+  const electronApi = getElectronSessionApi();
+
+  if (!electronApi) {
+    return false;
+  }
+
+  const electronSessions = await electronApi.getSavedSessions();
+
+  if (electronSessions.length > 0) {
+    return false;
+  }
+
+  const legacyPayload = getLegacySessionPayloads();
+
+  if (legacyPayload.index.length === 0) {
+    return false;
+  }
+
+  await electronApi.replaceSavedSessions(legacyPayload);
+  return true;
 };

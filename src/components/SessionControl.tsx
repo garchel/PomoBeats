@@ -5,7 +5,7 @@ import { usePomo } from "../context/PomoContext";
 import toast, { Toaster } from "react-hot-toast";
 
 export default function SessionControl() {
-  const { addPomo, addBreak, isBreak, toggleBreak } = usePomo();
+  const { addPomo, addBreak, isBreak, toggleBreak, t } = usePomo();
 
   const [name, setName] = useState("");
   const [hours, setHours] = useState(0);
@@ -15,18 +15,20 @@ export default function SessionControl() {
   );
   const [durationFocused, setDurationFocused] = useState(false);
 
-  const intervalLabel = isBreak ? "Intervalo" : "Pomo";
-
   const handleAddInterval = useCallback(() => {
     const totalMinutes = hours * 60 + minutes;
 
     if (!name.trim()) {
-      toast.error(`Digite um nome para o ${isBreak ? "intervalo" : "pomo"}.`);
+      toast.error(
+        isBreak
+          ? t("sessionControl.nameError.break")
+          : t("sessionControl.nameError.pomo")
+      );
       return;
     }
 
     if (totalMinutes < 1) {
-      toast.error("O periodo deve ter ao menos 1 minuto.");
+      toast.error(t("sessionControl.durationError"));
       return;
     }
 
@@ -46,8 +48,12 @@ export default function SessionControl() {
     setMinutes(0);
     setSelectedPart(null);
     setDurationFocused(false);
-    toast.success(`${isBreak ? "Intervalo" : "Pomo"} adicionado com sucesso.`);
-  }, [addBreak, addPomo, hours, isBreak, minutes, name]);
+    toast.success(
+      isBreak
+        ? t("sessionControl.addSuccess.break")
+        : t("sessionControl.addSuccess.pomo")
+    );
+  }, [addBreak, addPomo, hours, isBreak, minutes, name, t]);
 
   const handleKey = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -109,7 +115,7 @@ export default function SessionControl() {
             }`}
             onClick={() => isBreak && toggleBreak()}
           >
-            🍅 Pomo
+            {t("sessionControl.pomoButton")}
           </motion.button>
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -119,7 +125,7 @@ export default function SessionControl() {
             }`}
             onClick={() => !isBreak && toggleBreak()}
           >
-            ☕ Break
+            {t("sessionControl.breakButton")}
           </motion.button>
         </div>
 
@@ -136,10 +142,16 @@ export default function SessionControl() {
               onChange={(e) => setName(e.target.value)}
               maxLength={25}
               className="peer w-full border-b-2 border-gray-300 py-2 font-medium text-gray-800 outline-none transition-colors placeholder-transparent focus:border-red-500"
-              placeholder={`Nome do ${intervalLabel.toLowerCase()}`}
+              placeholder={
+                isBreak
+                  ? t("sessionControl.nameLabel.break")
+                  : t("sessionControl.nameLabel.pomo")
+              }
             />
             <label className="pointer-events-none absolute left-0 -top-2.5 text-sm transition-all peer-placeholder-shown:top-2 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-focus:-top-2.5 peer-focus:text-sm peer-focus:text-red-500">
-              Nome do {intervalLabel.toLowerCase()}
+              {isBreak
+                ? t("sessionControl.nameLabel.break")
+                : t("sessionControl.nameLabel.pomo")}
             </label>
           </motion.div>
 

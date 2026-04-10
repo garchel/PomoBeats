@@ -20,6 +20,8 @@ const SessionPanelComponent = ({ compact = false }: { compact?: boolean }) => {
     saveSession,
     resumePlayer,
     startPlayer,
+    language,
+    t,
   } = usePomo();
 
   const { title, intervals } = session;
@@ -70,7 +72,7 @@ const SessionPanelComponent = ({ compact = false }: { compact?: boolean }) => {
     const normalized = normalizeSession(session);
 
     if (!normalized) {
-      toast.error("Adicione um titulo e ao menos um intervalo para exportar.");
+      toast.error(t("session.exportError"));
       return;
     }
 
@@ -85,11 +87,16 @@ const SessionPanelComponent = ({ compact = false }: { compact?: boolean }) => {
     anchor.click();
 
     URL.revokeObjectURL(url);
-    toast.success("Sessao exportada com sucesso.");
-  }, [session]);
+    toast.success(t("session.exportSuccess"));
+  }, [session, t]);
 
   return (
-    <div className={`flex w-full flex-col ${compact ? "mt-2 h-full min-h-0" : "mt-3"}`} ref={listRef}>
+    <div
+      className={`flex w-full flex-col ${
+        compact ? "mt-2 h-full min-h-0" : "mt-3 min-h-0 flex-1"
+      }`}
+      ref={listRef}
+    >
       {!compact && (
         <motion.div
           className="relative mb-4 flex w-full items-center justify-center gap-3"
@@ -102,11 +109,11 @@ const SessionPanelComponent = ({ compact = false }: { compact?: boolean }) => {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="peer mb-4 w-[255px] border-b-2 border-gray-300 py-2 text-center text-lg font-semibold text-gray-700 outline-none transition-colors placeholder-transparent focus:border-red-500"
-            placeholder="Titulo"
+            placeholder={t("session.titlePlaceholder")}
           />
           {title === "" && (
             <label className="pointer-events-none absolute left-2/5 top-2 -translate-x-1/2 text-sm text-gray-400 transition-all">
-              Titulo da sessao
+              {t("session.titleLabel")}
             </label>
           )}
 
@@ -117,7 +124,7 @@ const SessionPanelComponent = ({ compact = false }: { compact?: boolean }) => {
                 onClick={saveSession}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                title="Salvar sessao"
+                title={t("session.save")}
               >
                 <LuBookmark size={18} />
               </motion.button>
@@ -126,7 +133,7 @@ const SessionPanelComponent = ({ compact = false }: { compact?: boolean }) => {
                 onClick={handleExport}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                title="Exportar sessao"
+                title={t("session.export")}
               >
                 <Upload size={18} />
               </motion.button>
@@ -138,6 +145,7 @@ const SessionPanelComponent = ({ compact = false }: { compact?: boolean }) => {
             onClick={handlePage}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
+            title={currentPage === "player" ? t("session.backToEdit") : t("session.openPlayer")}
           >
             {currentPage === "player" ? <Edit size={18} /> : <Play size={18} />}
           </motion.button>
@@ -146,11 +154,11 @@ const SessionPanelComponent = ({ compact = false }: { compact?: boolean }) => {
 
       {compact && (
         <div className="mb-2 flex items-center justify-between px-1">
-          <h3 className="text-sm font-semibold text-gray-700">Sequencia da sessao</h3>
+          <h3 className="text-sm font-semibold text-gray-700">{t("session.sequence")}</h3>
           <button
             className="rounded-full bg-red-500 p-2 text-white shadow-sm hover:bg-red-600"
             onClick={handlePage}
-            title="Voltar para edicao"
+            title={t("session.backToEdit")}
             type="button"
           >
             <Edit size={16} />
@@ -159,13 +167,13 @@ const SessionPanelComponent = ({ compact = false }: { compact?: boolean }) => {
       )}
 
       <div
-        className={`min-h-0 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent ${
-          compact ? "pr-1" : "h-[240px]"
+        className={`min-h-0 flex-1 overflow-y-scroll scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent ${
+          compact ? "pr-1" : "pr-1"
         }`}
       >
         <div className="flex flex-col space-y-2">
           {intervals.length === 0 ? (
-            <p className="mt-4 text-center italic text-gray-400">Nenhum periodo adicionado</p>
+            <p className="mt-4 text-center italic text-gray-400">{t("session.empty")}</p>
           ) : (
             intervals.map((interval, idx) => {
               const isSelected = selectedIndex === idx;
@@ -234,7 +242,7 @@ const SessionPanelComponent = ({ compact = false }: { compact?: boolean }) => {
                       animate={{ x: isSelected ? -24 : 0 }}
                       transition={{ type: "spring", stiffness: 300, damping: 25 }}
                     >
-                      {formatDurationLabel(interval.duration)}
+                      {formatDurationLabel(interval.duration, language)}
                     </motion.span>
                     <AnimatePresence>
                       {isSelected && (

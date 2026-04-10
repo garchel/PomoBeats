@@ -1,6 +1,7 @@
 export type IntervalType = "pomo" | "break";
 export type MusicSource = "generated" | "radio" | "custom";
 export type RadioCategory = "lofi" | "pop" | "anime" | "kpop" | "rock";
+export type AppLanguage = "pt-BR" | "en-US";
 
 export interface Interval {
   name: string;
@@ -21,6 +22,7 @@ export interface SavedSessionMetadata {
 }
 
 export interface SettingsState {
+  language: AppLanguage;
   autoCheckTasks: boolean;
   autoStartBreaks: boolean;
   autoStartPomos: boolean;

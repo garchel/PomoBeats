@@ -30,6 +30,9 @@ function SettingsSnapshot() {
       <button onClick={() => updateSettings({ intervalMusicSource: "custom" })}>
         set-interval-custom
       </button>
+      <button onClick={() => updateSettings({ language: "en-US" })}>
+        set-language-en
+      </button>
       <output data-testid="settings-snapshot">{JSON.stringify(settings)}</output>
     </>
   );
@@ -45,7 +48,9 @@ function renderSettingsPanel() {
 }
 
 function getSwitchForLabel(label: string) {
-  const row = screen.getByText(label).closest("div");
+  const row = screen
+    .getByText(label)
+    .closest('[data-setting-row="true"]');
 
   if (!row) {
     throw new Error(`Nao encontrei a linha da configuracao: ${label}`);
@@ -62,7 +67,7 @@ function getSwitchForLabel(label: string) {
 
 function getSwitchForDuplicateLabel(label: string, index: number) {
   const rows = screen.getAllByText(label);
-  const row = rows[index]?.closest("div");
+  const row = rows[index]?.closest('[data-setting-row="true"]');
 
   if (!row) {
     throw new Error(`Nao encontrei a linha repetida ${index} para: ${label}`);
@@ -82,6 +87,7 @@ describe("SettingsPanel", () => {
     setSettingsMock.mockReset();
     getSettingsMock.mockReset();
     getSettingsMock.mockResolvedValue({
+      language: "pt-BR",
       autoCheckTasks: true,
       autoStartBreaks: false,
       autoStartPomos: false,
@@ -91,14 +97,14 @@ describe("SettingsPanel", () => {
       customAlarm: false,
       customAlarmPath: "",
       studyMusicEnabled: true,
-      studyMusicSource: "generated",
+      studyMusicSource: "radio",
       studyRadioCategory: "lofi",
       selectedStudyTrack: "Track 1",
       studyTrackVolume: 30,
       customStudyTrackEnabled: false,
       customStudyTrackPath: "",
       intervalMusicEnabled: true,
-      intervalMusicSource: "generated",
+      intervalMusicSource: "radio",
       intervalRadioCategory: "lofi",
       selectedIntervalTrack: "Track 1",
       intervalTrackVolume: 40,
@@ -123,6 +129,7 @@ describe("SettingsPanel", () => {
 
   it("loads persisted settings on mount", async () => {
     getSettingsMock.mockResolvedValueOnce({
+      language: "pt-BR",
       autoCheckTasks: false,
       autoStartBreaks: true,
       autoStartPomos: true,
@@ -152,6 +159,7 @@ describe("SettingsPanel", () => {
     await waitFor(() => {
       const snapshot = screen.getByTestId("settings-snapshot");
       expect(snapshot).toHaveTextContent('"alarmEnabled":false');
+      expect(snapshot).toHaveTextContent('"language":"pt-BR"');
       expect(snapshot).toHaveTextContent('"selectedAlarm":"Bell"');
       expect(snapshot).toHaveTextContent('"customAlarmPath":"blob:alarm.mp3"');
       expect(snapshot).toHaveTextContent('"studyMusicEnabled":false');
@@ -168,8 +176,8 @@ describe("SettingsPanel", () => {
 
     expect(screen.getByText("Som")).toBeInTheDocument();
     expect(screen.getByText("Alarme")).toBeInTheDocument();
-    expect(screen.getByText("Musica de estudo")).toBeInTheDocument();
-    expect(screen.getByText("Musica de intervalo")).toBeInTheDocument();
+    expect(screen.getByText("Música de estudo")).toBeInTheDocument();
+    expect(screen.getByText("Música de intervalo")).toBeInTheDocument();
     expect(screen.queryByText("Ativar alarme")).not.toBeInTheDocument();
   });
 
@@ -177,20 +185,20 @@ describe("SettingsPanel", () => {
     const user = userEvent.setup();
     renderSettingsPanel();
 
-    await user.click(getSwitchForLabel("Auto Check Tasks"));
-    await user.click(getSwitchForLabel("Auto Start Breaks"));
-    await user.click(getSwitchForLabel("Auto Start Pomos"));
+    await user.click(getSwitchForLabel("Verificação automática de tarefas"));
+    await user.click(getSwitchForLabel("Iniciar intervalos automaticamente"));
+    await user.click(getSwitchForLabel("Iniciar pomos automaticamente"));
     await user.click(getSwitchForLabel("Alarme"));
-    await user.click(getSwitchForLabel("Musica de estudo"));
-    await user.click(getSwitchForLabel("Musica de intervalo"));
+    await user.click(getSwitchForLabel("Música de estudo"));
+    await user.click(getSwitchForLabel("Música de intervalo"));
 
-    expect(screen.queryByText("Alarm Volume")).not.toBeInTheDocument();
-    expect(screen.queryByText("Study Volume")).not.toBeInTheDocument();
-    expect(screen.queryByText("Interval Volume")).not.toBeInTheDocument();
+    expect(screen.queryByText("Volume do alarme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Volume do estudo")).not.toBeInTheDocument();
+    expect(screen.queryByText("Volume do intervalo")).not.toBeInTheDocument();
 
     await user.click(getSwitchForLabel("Alarme"));
-    await user.click(getSwitchForLabel("Musica de estudo"));
-    await user.click(getSwitchForLabel("Musica de intervalo"));
+    await user.click(getSwitchForLabel("Música de estudo"));
+    await user.click(getSwitchForLabel("Música de intervalo"));
     await user.click(getSwitchForDuplicateLabel("Usar arquivo customizado", 0));
 
     const sliders = screen.getAllByRole("slider");
@@ -215,6 +223,7 @@ describe("SettingsPanel", () => {
     await waitFor(() => {
       const snapshot = screen.getByTestId("settings-snapshot").textContent ?? "";
       expect(snapshot).toContain('"autoCheckTasks":false');
+      expect(snapshot).toContain('"language":"pt-BR"');
       expect(snapshot).toContain('"autoStartBreaks":true');
       expect(snapshot).toContain('"autoStartPomos":true');
       expect(snapshot).toContain('"alarmEnabled":true');
@@ -240,6 +249,7 @@ describe("SettingsPanel", () => {
 
     expect(setSettingsMock).toHaveBeenCalled();
     expect(setSettingsMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      language: "pt-BR",
       autoCheckTasks: false,
       autoStartBreaks: true,
       autoStartPomos: true,
@@ -266,5 +276,25 @@ describe("SettingsPanel", () => {
 
     expect(screen.getByText("Categoria")).toBeInTheDocument();
     expect(screen.queryAllByText("Usar arquivo customizado")).toHaveLength(2);
+  });
+
+  it("stores the selected language", async () => {
+    renderSettingsPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("Configurações")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("set-language-en"));
+
+    await waitFor(() => {
+      const snapshot = screen.getByTestId("settings-snapshot");
+      expect(snapshot).toHaveTextContent('"language":"en-US"');
+    });
+
+    expect(setSettingsMock).toHaveBeenCalled();
+    expect(setSettingsMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      language: "en-US",
+    });
   });
 });

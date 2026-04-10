@@ -33,10 +33,15 @@ const PomoPlayerComponent = () => {
     activeRadioChannelStates,
     isCurrentIntervalUsingRadio,
     selectRadioChannel,
+    t,
   } = usePomo();
 
   const totalIntervals = session.intervals.length;
-  const currentLabel = currentInterval?.type === "break" ? "Break" : "Pomo";
+  const activeInterval = currentInterval ?? session.intervals[0] ?? null;
+  const currentLabel =
+    activeInterval?.type === "break"
+      ? t("interval.type.break")
+      : t("interval.type.pomo");
 
   return (
     <motion.div
@@ -47,19 +52,19 @@ const PomoPlayerComponent = () => {
     >
       {totalIntervals === 0 ? (
         <div className="mt-8 text-center text-gray-500">
-          Adicione periodos na sessao para iniciar o player.
+          {t("player.empty")}
         </div>
       ) : (
         <>
           <div className="mb-3 text-center">
             <p className="text-xs uppercase tracking-[0.2em] text-gray-400">
-              {isSessionComplete ? "Sessao concluida" : currentLabel}
+              {isSessionComplete ? t("player.completed") : currentLabel}
             </p>
             <h2 className="mt-1 text-lg font-semibold text-gray-800">
-              {currentInterval?.name ?? session.intervals[0].name}
+              {activeInterval?.name}
             </h2>
             <p className="text-sm text-gray-500">
-              {currentIntervalIndex === null ? 1 : currentIntervalIndex + 1} de {totalIntervals}
+              {currentIntervalIndex === null ? 1 : currentIntervalIndex + 1} {t("common.of")} {totalIntervals}
             </p>
           </div>
 
@@ -73,7 +78,7 @@ const PomoPlayerComponent = () => {
               whileTap={{ scale: 0.9 }}
               className="rounded-full bg-gray-100 p-3 text-gray-600 shadow-md transition-all hover:bg-gray-200"
               onClick={goToPreviousInterval}
-              title="Intervalo anterior"
+              title={t("player.previous")}
             >
               <SkipBack size={24} />
             </motion.button>
@@ -83,7 +88,7 @@ const PomoPlayerComponent = () => {
               whileTap={{ scale: 0.9 }}
               className="rounded-full bg-red-500 p-5 text-white shadow-xl transition-all"
               onClick={isPlaying ? pausePlayer : currentInterval ? resumePlayer : startPlayer}
-              title={isPlaying ? "Pausar" : "Iniciar ou retomar"}
+              title={isPlaying ? t("player.pause") : t("player.play")}
             >
               {isPlaying ? <Pause size={34} /> : <Play size={34} />}
             </motion.button>
@@ -93,13 +98,13 @@ const PomoPlayerComponent = () => {
               whileTap={{ scale: 0.9 }}
               className="rounded-full bg-gray-100 p-3 text-gray-600 shadow-md transition-all hover:bg-gray-200"
               onClick={goToNextInterval}
-              title="Proximo intervalo"
+              title={t("player.next")}
             >
               <SkipForward size={24} />
             </motion.button>
           </div>
 
-          {isCurrentIntervalUsingRadio && activeRadioCandidates.length > 1 && (
+          {isCurrentIntervalUsingRadio && activeRadioCandidates.length > 0 && (
             <div className="mt-3 flex items-center gap-2">
               {activeRadioCandidates.slice(0, 3).map((candidate, index) => (
                 <button
@@ -119,7 +124,7 @@ const PomoPlayerComponent = () => {
                   {activeRadioChannelStates[candidate.id] === "error" && (
                     <X size={12} />
                   )}
-                  Canal {index + 1}
+                  {t("player.channel", { index: index + 1 })}
                 </button>
               ))}
             </div>

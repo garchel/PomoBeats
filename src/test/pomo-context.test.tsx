@@ -42,6 +42,7 @@ describe("PomoContext player transitions", () => {
     vi.useFakeTimers();
     window.electron = {
       getSettings: vi.fn().mockResolvedValue({
+        language: "pt-BR",
         autoCheckTasks: true,
         autoStartBreaks: false,
         autoStartPomos: false,

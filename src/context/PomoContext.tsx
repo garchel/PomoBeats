@@ -11,8 +11,13 @@ import {
 import type { ReactNode } from "react";
 import toast from "react-hot-toast";
 import { PomoAudioController } from "../lib/audio";
+import { getLocale, translate, type TranslationKey } from "../lib/i18n";
 import type { RadioCandidate } from "../lib/radioBrowser";
-import { normalizeSession, saveSessionToStorage } from "../lib/sessionStorage";
+import {
+  migrateLegacySessionsToElectron,
+  normalizeSession,
+  saveSessionRecord,
+} from "../lib/sessionStorage";
 import type { Interval, SessionObject, SettingsState } from "../types/pomo";
 import type { Page } from "../types/Page";
 
@@ -20,7 +25,7 @@ interface PomoContextType {
   setTitle: (title: string) => void;
   session: SessionObject;
   setSession: (list: SessionObject) => void;
-  saveSession: () => void;
+  saveSession: () => Promise<void>;
   addPomo: (session: Omit<Interval, "type">) => void;
   addBreak: (session: Omit<Interval, "type">) => void;
   removeInterval: (index: number) => void;
@@ -44,6 +49,8 @@ interface PomoContextType {
   activeRadioChannelStates: Record<string, "idle" | "loading" | "playing" | "error">;
   selectRadioChannel: (index: number) => void;
   settings: SettingsState;
+  language: SettingsState["language"];
+  t: (key: TranslationKey, values?: Record<string, string | number>) => string;
   updateSettings: (newSettings: Partial<SettingsState>) => void;
   currentPage: Page;
   setPage: (page: Page) => void;
@@ -52,6 +59,7 @@ interface PomoContextType {
 const PomoContext = createContext<PomoContextType | undefined>(undefined);
 
 const DEFAULT_SETTINGS: SettingsState = {
+  language: "pt-BR",
   autoCheckTasks: true,
   autoStartBreaks: false,
   autoStartPomos: false,
@@ -61,14 +69,14 @@ const DEFAULT_SETTINGS: SettingsState = {
   customAlarm: false,
   customAlarmPath: "",
   studyMusicEnabled: true,
-  studyMusicSource: "generated",
+  studyMusicSource: "radio",
   studyRadioCategory: "lofi",
   selectedStudyTrack: "Track 1",
   studyTrackVolume: 35,
   customStudyTrackEnabled: false,
   customStudyTrackPath: "",
   intervalMusicEnabled: true,
-  intervalMusicSource: "generated",
+  intervalMusicSource: "radio",
   intervalRadioCategory: "lofi",
   selectedIntervalTrack: "Track 1",
   intervalTrackVolume: 35,
@@ -102,6 +110,12 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
     title,
     intervals,
   };
+  const language = settings.language;
+  const t = useCallback(
+    (key: TranslationKey, values?: Record<string, string | number>) =>
+      translate(language, key, values),
+    [language]
+  );
 
   const currentInterval = useMemo(
     () => (currentIntervalIndex === null ? null : intervals[currentIntervalIndex] ?? null),
@@ -243,7 +257,7 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
 
   const startPlayer = useCallback(() => {
     if (intervals.length === 0) {
-      toast.error("Adicione ao menos um intervalo para iniciar a sessao.");
+      toast.error(t("context.startError"));
       return;
     }
 
@@ -255,7 +269,7 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
     setPlayerActive(true);
     setIsSessionComplete(false);
     setIsPlaying(true);
-  }, [activateInterval, currentIntervalIndex, intervals.length, isSessionComplete]);
+  }, [activateInterval, currentIntervalIndex, intervals.length, isSessionComplete, t]);
 
   const pausePlayer = useCallback(() => {
     setPlayerActive(true);
@@ -274,7 +288,7 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
 
   const resumePlayer = useCallback(() => {
     if (intervals.length === 0) {
-      toast.error("Adicione ao menos um intervalo para iniciar a sessao.");
+      toast.error(t("context.startError"));
       return;
     }
 
@@ -286,7 +300,7 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
     setPlayerActive(true);
     setIsSessionComplete(false);
     setIsPlaying(true);
-  }, [activateInterval, currentIntervalIndex, intervals.length, isSessionComplete]);
+  }, [activateInterval, currentIntervalIndex, intervals.length, isSessionComplete, t]);
 
   const resetPlayer = useCallback(() => {
     clearPlaybackState();
@@ -325,17 +339,17 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
     activateInterval(currentIntervalIndex - 1, isPlaying);
   }, [activateInterval, currentIntervalIndex, intervals.length, isPlaying]);
 
-  const saveSession = () => {
+  const saveSession = async () => {
     const normalizedSession = normalizeSession(session);
 
     if (!normalizedSession) {
-      toast.error("Para salvar, adicione um titulo e pelo menos um intervalo valido.");
+      toast.error(t("context.saveError"));
       return;
     }
 
-    saveSessionToStorage(normalizedSession);
+    await saveSessionRecord(normalizedSession);
     setSession(normalizedSession);
-    toast.success("Sessao salva com sucesso.");
+    toast.success(t("context.saveSuccess"));
   };
 
   useEffect(() => {
@@ -449,9 +463,19 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
         })
         .catch((error) => {
           console.error("Erro ao carregar configuracoes do Electron:", error);
-          toast.error("Erro ao carregar configuracoes salvas.");
+          toast.error(t("context.settingsLoadError"));
         });
     }
+  }, [t]);
+
+  useEffect(() => {
+    document.documentElement.lang = getLocale(language);
+  }, [language]);
+
+  useEffect(() => {
+    migrateLegacySessionsToElectron().catch((error) => {
+      console.error("Erro ao migrar sessoes legadas para o Electron:", error);
+    });
   }, []);
 
   useEffect(() => {
@@ -491,6 +515,8 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
         activeRadioChannelStates,
         selectRadioChannel,
         settings,
+        language,
+        t,
         updateSettings,
         currentPage,
         setPage,
