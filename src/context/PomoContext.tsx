@@ -1,113 +1,275 @@
-// context/PomoContext.tsx
+﻿/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
-  useState,
+  useCallback,
   useContext,
   useEffect,
-  useCallback,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import type { ReactNode } from "react";
+import toast from "react-hot-toast";
+import { PomoAudioController } from "../lib/audio";
+import { getLocale, translate, type TranslationKey } from "../lib/i18n";
+import type { RadioCandidate } from "../lib/radioBrowser";
+import {
+  migrateLegacySessionsToElectron,
+  normalizeSession,
+  saveSessionRecord,
+} from "../lib/sessionStorage";
+import type { Interval, SessionObject, SettingsState } from "../types/pomo";
 import type { Page } from "../types/Page";
-import toast, { Toaster } from "react-hot-toast";
-
-export interface Interval {
-  name: string;
-  duration: number;
-  type: string;
-}
-
-export interface SessionObject {
-  title: string;
-  intervals: Interval[];
-}
-
-interface SettingsState {
-  autoCheckTasks: boolean;
-  autoStartBreaks: boolean;
-  autoStartPomos: boolean;
-  selectedAlarm: string;
-  customAlarm: boolean;
-  customAlarmPath: string;
-  selectedIntervalTrack: string;
-  customIntervalTrackEnabled: boolean;
-  customIntervalTrackPath: string;
-}
 
 interface PomoContextType {
   setTitle: (title: string) => void;
   session: SessionObject;
   setSession: (list: SessionObject) => void;
-  saveSession: () => void;
+  saveSession: () => Promise<void>;
   addPomo: (session: Omit<Interval, "type">) => void;
   addBreak: (session: Omit<Interval, "type">) => void;
   removeInterval: (index: number) => void;
   currentIntervalIndex: number | null;
-  setCurrentIntervalIndex: (index: number | null) => void;
+  currentInterval: Interval | null;
+  remainingSeconds: number;
   isBreak: boolean;
   toggleBreak: () => void;
   isPlaying: boolean;
   playerActive: boolean;
-  togglePlay: () => void;
-  togglePlayer: () => void;
+  isSessionComplete: boolean;
+  startPlayer: () => void;
+  pausePlayer: () => void;
+  resumePlayer: () => void;
+  resetPlayer: () => void;
+  goToNextInterval: () => void;
+  goToPreviousInterval: () => void;
+  activeRadioCandidates: RadioCandidate[];
+  activeRadioChannelIndex: number | null;
+  isCurrentIntervalUsingRadio: boolean;
+  activeRadioChannelStates: Record<string, "idle" | "loading" | "playing" | "error">;
+  selectRadioChannel: (index: number) => void;
   settings: SettingsState;
+  language: SettingsState["language"];
+  t: (key: TranslationKey, values?: Record<string, string | number>) => string;
   updateSettings: (newSettings: Partial<SettingsState>) => void;
+  toggleWindowClickThrough: () => Promise<void>;
+  minimizeWindow: () => Promise<void>;
+  closeWindow: () => Promise<void>;
   currentPage: Page;
   setPage: (page: Page) => void;
 }
 
 const PomoContext = createContext<PomoContextType | undefined>(undefined);
 
+const DEFAULT_SETTINGS: SettingsState = {
+  language: "pt-BR",
+  autoCheckTasks: true,
+  autoStartBreaks: false,
+  autoStartPomos: false,
+  windowOpacity: 92,
+  clickThroughEnabled: false,
+  minimizeToTray: true,
+  hotkeys: {
+    toggleClickThrough: "CommandOrControl+Shift+X",
+    focusWindow: "CommandOrControl+Shift+Space",
+  },
+  alarmEnabled: true,
+  selectedAlarm: "Beep",
+  alarmVolume: 60,
+  customAlarm: false,
+  customAlarmPath: "",
+  studyMusicEnabled: true,
+  studyMusicSource: "radio",
+  studyRadioCategory: "lofi",
+  selectedStudyTrack: "Track 1",
+  studyTrackVolume: 35,
+  customStudyTrackEnabled: false,
+  customStudyTrackPath: "",
+  intervalMusicEnabled: true,
+  intervalMusicSource: "radio",
+  intervalRadioCategory: "lofi",
+  selectedIntervalTrack: "Track 1",
+  intervalTrackVolume: 35,
+  customIntervalTrackEnabled: false,
+  customIntervalTrackPath: "",
+};
+
+const mergeSettings = (
+  currentSettings: SettingsState,
+  nextSettings?: Partial<SettingsState>
+): SettingsState => ({
+  ...currentSettings,
+  ...(nextSettings ?? {}),
+  hotkeys: {
+    ...currentSettings.hotkeys,
+    ...(nextSettings?.hotkeys ?? {}),
+  },
+});
+
 export const PomoProvider = ({ children }: { children: ReactNode }) => {
   const [intervals, setIntervals] = useState<Interval[]>([]);
   const [title, setTitle] = useState("");
-  const [currentIntervalIndex, setCurrentIntervalIndex] = useState<
-    number | null
-  >(null);
+  const [currentIntervalIndex, setCurrentIntervalIndex] = useState<number | null>(
+    null
+  );
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [isBreak, setIsBreak] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playerActive, setPlayerActive] = useState(false);
+  const [isSessionComplete, setIsSessionComplete] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>("sessionControl");
-  const setPage = (page: Page) => setCurrentPage(page);
+  const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
+  const [activeRadioCandidates, setActiveRadioCandidates] = useState<RadioCandidate[]>([]);
+  const [selectedRadioCandidateId, setSelectedRadioCandidateId] = useState<string | null>(null);
+  const [activeRadioChannelStates, setActiveRadioChannelStates] = useState<
+    Record<string, "idle" | "loading" | "playing" | "error">
+  >({});
+  const audioControllerRef = useRef<PomoAudioController | null>(null);
+  const activeRadioCandidatesRef = useRef<RadioCandidate[]>([]);
+  const selectedRadioCandidateIdRef = useRef<string | null>(null);
 
-  const [settings, setSettings] = useState<SettingsState>({
-    autoCheckTasks: true,
-    autoStartBreaks: false,
-    autoStartPomos: false,
-    selectedAlarm: "Beep",
-    customAlarm: false,
-    customAlarmPath: "",
-    selectedIntervalTrack: "Track 1",
-    customIntervalTrackEnabled: false,
-    customIntervalTrackPath: "",
-  });
+  const session: SessionObject = {
+    title,
+    intervals,
+  };
+  const language = settings.language;
+  const t = useCallback(
+    (key: TranslationKey, values?: Record<string, string | number>) =>
+      translate(language, key, values),
+    [language]
+  );
 
-  const addPomo = (session: Omit<Interval, "type">) =>
-    setIntervals((prev) => [...prev, { ...session, type: "pomo" }]);
+  const currentInterval = useMemo(
+    () => (currentIntervalIndex === null ? null : intervals[currentIntervalIndex] ?? null),
+    [currentIntervalIndex, intervals]
+  );
+  const isCurrentIntervalUsingRadio = useMemo(() => {
+    if (!currentInterval) {
+      return false;
+    }
 
-  const addBreak = (session: Omit<Interval, "type">) =>
-    setIntervals((prev) => [...prev, { ...session, type: "break" }]);
+    return currentInterval.type === "pomo"
+      ? settings.studyMusicSource === "radio"
+      : settings.intervalMusicSource === "radio";
+  }, [currentInterval, settings.intervalMusicSource, settings.studyMusicSource]);
+  const activeRadioChannelIndex = useMemo(
+    () =>
+      selectedRadioCandidateId
+        ? activeRadioCandidates.findIndex(
+            (candidate) => candidate.id === selectedRadioCandidateId
+          )
+        : -1,
+    [activeRadioCandidates, selectedRadioCandidateId]
+  );
 
-  const removeInterval = (index: number) =>
-    setIntervals((prev) => prev.filter((_, i) => i !== index));
+  if (!audioControllerRef.current) {
+    audioControllerRef.current = new PomoAudioController();
+  }
+
+  useEffect(() => {
+    activeRadioCandidatesRef.current = activeRadioCandidates;
+  }, [activeRadioCandidates]);
+
+  useEffect(() => {
+    selectedRadioCandidateIdRef.current = selectedRadioCandidateId;
+  }, [selectedRadioCandidateId]);
+
+  const clearPlaybackState = useCallback((keepPlayerVisible = false) => {
+    audioControllerRef.current?.stopIntervalTrack();
+    setActiveRadioCandidates([]);
+    setSelectedRadioCandidateId(null);
+    setActiveRadioChannelStates({});
+    setCurrentIntervalIndex(null);
+    setRemainingSeconds(0);
+    setIsPlaying(false);
+    setPlayerActive(keepPlayerVisible);
+    setIsSessionComplete(false);
+  }, []);
+
+  const pauseForNavigation = useCallback(() => {
+    audioControllerRef.current?.stopIntervalTrack();
+    setIsPlaying(false);
+    setPlayerActive(true);
+  }, []);
+
+  const setPage = useCallback(
+    (page: Page) => {
+      setCurrentPage((previousPage) => {
+        if (previousPage === "player" && page !== "player") {
+          pauseForNavigation();
+        }
+
+        return page;
+      });
+    },
+    [pauseForNavigation]
+  );
+
+  const activateInterval = useCallback(
+    (index: number, shouldPlay: boolean) => {
+      const nextInterval = intervals[index];
+
+      if (!nextInterval) {
+        return false;
+      }
+
+      setActiveRadioCandidates([]);
+      setSelectedRadioCandidateId(null);
+      setActiveRadioChannelStates({});
+      setCurrentIntervalIndex(index);
+      setRemainingSeconds(nextInterval.duration * 60);
+      setPlayerActive(true);
+      setIsPlaying(shouldPlay);
+      setIsSessionComplete(false);
+      return true;
+    },
+    [intervals]
+  );
+
+  const shouldAutoStartInterval = useCallback(
+    (interval: Interval) =>
+      interval.type === "break" ? settings.autoStartBreaks : settings.autoStartPomos,
+    [settings.autoStartBreaks, settings.autoStartPomos]
+  );
+
+  const completeSession = useCallback(() => {
+    audioControllerRef.current?.stopIntervalTrack();
+    setRemainingSeconds(0);
+    setIsPlaying(false);
+    setPlayerActive(true);
+    setIsSessionComplete(true);
+  }, []);
+
+  const addPomo = (interval: Omit<Interval, "type">) => {
+    clearPlaybackState();
+    setIntervals((prev) => [...prev, { ...interval, type: "pomo" }]);
+  };
+
+  const addBreak = (interval: Omit<Interval, "type">) => {
+    clearPlaybackState();
+    setIntervals((prev) => [...prev, { ...interval, type: "break" }]);
+  };
+
+  const removeInterval = (index: number) => {
+    clearPlaybackState();
+    setIntervals((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+  };
 
   const toggleBreak = () => setIsBreak((prev) => !prev);
-  const togglePlay = () => setIsPlaying((prev) => !prev);
-  const togglePlayer = () => setPlayerActive((prev) => !prev);
 
-  const setSession = (list: SessionObject) => {
-    setTitle(list.title);
-    setIntervals(list.intervals);
+  const setSession = (nextSession: SessionObject) => {
+    clearPlaybackState();
+    setTitle(nextSession.title);
+    setIntervals(nextSession.intervals);
   };
 
   const updateSettings = useCallback((newSettings: Partial<SettingsState>) => {
     setSettings((prev) => {
-      const updatedSettings = { ...prev, ...newSettings };
+      const updatedSettings = mergeSettings(prev, newSettings);
 
-      // ⬇️ NOVO: Lógica para persistir as configurações no Electron
-      if (window.electron && window.electron.setSettings) {
+      if (window.electron?.setSettings) {
         window.electron.setSettings(updatedSettings).catch((error) => {
-          console.error("Erro ao salvar configurações no Electron:", error);
-          // Você pode ou não mostrar um toast de erro aqui, dependendo da UX desejada.
+          console.error("Erro ao salvar configuracoes no Electron:", error);
         });
       }
 
@@ -115,64 +277,275 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
-  const saveSession = () => {
-    if (!title.trim() || intervals.length === 0) {
-      toast.error("Para salvar é necessário Título e Intervalos na Sessão. 😖");
+  const toggleWindowClickThrough = useCallback(async () => {
+    if (!window.electron?.toggleClickThrough) {
       return;
     }
-    const sessionMetadata = {
-      title: title,
-      intervals: intervals.length,
-      timestamp: new Date().toLocaleDateString("pt-BR"),
-    };
 
-    const savedSessionsRaw = localStorage.getItem("savedPomoSessions");
-    const existingSessions = savedSessionsRaw
-      ? JSON.parse(savedSessionsRaw)
-      : [];
+    const nextWindowState = await window.electron.toggleClickThrough();
 
-    const listExists = existingSessions.some(
-      (list: any) => list.title === title
+    setSettings((prev) =>
+      mergeSettings(prev, {
+        clickThroughEnabled: nextWindowState.clickThroughEnabled,
+        windowOpacity: nextWindowState.windowOpacity,
+        minimizeToTray: nextWindowState.minimizeToTray,
+        hotkeys: nextWindowState.hotkeys,
+      })
     );
+  }, []);
 
-    if (!listExists) {
-      existingSessions.push(sessionMetadata);
-    } else {
-      // Atualize a lista existente
-      const index = existingSessions.findIndex(
-        (list: any) => list.title === title
-      );
-      existingSessions[index] = sessionMetadata;
+  const minimizeWindow = useCallback(async () => {
+    await window.electron?.minimizeMainWindow?.();
+  }, []);
+
+  const closeWindow = useCallback(async () => {
+    await window.electron?.closeMainWindow?.();
+  }, []);
+
+  const startPlayer = useCallback(() => {
+    if (intervals.length === 0) {
+      toast.error(t("context.startError"));
+      return;
     }
 
-    localStorage.setItem("savedPomoSessions", JSON.stringify(existingSessions));
+    if (currentIntervalIndex === null || isSessionComplete) {
+      activateInterval(0, true);
+      return;
+    }
 
-    // 4. Salve a lista completa de sessões com o título como chave
-    localStorage.setItem(title, JSON.stringify(session));
-    toast.success("Lista salva com sucesso!");
-  };
+    setPlayerActive(true);
+    setIsSessionComplete(false);
+    setIsPlaying(true);
+  }, [activateInterval, currentIntervalIndex, intervals.length, isSessionComplete, t]);
 
-  // 🔑 Objeto completo centralizado
-  const session: SessionObject = {
-    title,
-    intervals,
+  const pausePlayer = useCallback(() => {
+    setPlayerActive(true);
+    setIsPlaying(false);
+  }, []);
+
+  const selectRadioChannel = useCallback((index: number) => {
+    const nextCandidate = activeRadioCandidates[index];
+
+    if (!nextCandidate) {
+      return;
+    }
+
+    setSelectedRadioCandidateId(nextCandidate.id);
+  }, [activeRadioCandidates]);
+
+  const resumePlayer = useCallback(() => {
+    if (intervals.length === 0) {
+      toast.error(t("context.startError"));
+      return;
+    }
+
+    if (currentIntervalIndex === null || isSessionComplete) {
+      activateInterval(0, true);
+      return;
+    }
+
+    setPlayerActive(true);
+    setIsSessionComplete(false);
+    setIsPlaying(true);
+  }, [activateInterval, currentIntervalIndex, intervals.length, isSessionComplete, t]);
+
+  const resetPlayer = useCallback(() => {
+    clearPlaybackState();
+  }, [clearPlaybackState]);
+
+  const goToNextInterval = useCallback(() => {
+    if (intervals.length === 0) {
+      return;
+    }
+
+    if (currentIntervalIndex === null) {
+      activateInterval(0, true);
+      return;
+    }
+
+    const nextIndex = currentIntervalIndex + 1;
+
+    if (nextIndex >= intervals.length) {
+      completeSession();
+      return;
+    }
+
+    activateInterval(nextIndex, isPlaying);
+  }, [activateInterval, completeSession, currentIntervalIndex, intervals.length, isPlaying]);
+
+  const goToPreviousInterval = useCallback(() => {
+    if (intervals.length === 0) {
+      return;
+    }
+
+    if (currentIntervalIndex === null || currentIntervalIndex <= 0) {
+      activateInterval(0, isPlaying);
+      return;
+    }
+
+    activateInterval(currentIntervalIndex - 1, isPlaying);
+  }, [activateInterval, currentIntervalIndex, intervals.length, isPlaying]);
+
+  const saveSession = async () => {
+    const normalizedSession = normalizeSession(session);
+
+    if (!normalizedSession) {
+      toast.error(t("context.saveError"));
+      return;
+    }
+
+    await saveSessionRecord(normalizedSession);
+    setSession(normalizedSession);
+    toast.success(t("context.saveSuccess"));
   };
 
   useEffect(() => {
-    // 1. Verifica se estamos no Electron e se a API foi injetada
-    if (window.electron && window.electron.getSettings) {
+    if (!isPlaying || currentIntervalIndex === null) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setRemainingSeconds((prev) => Math.max(prev - 1, 0));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [currentIntervalIndex, isPlaying]);
+
+  useEffect(() => {
+    if (!isPlaying || !currentInterval) {
+      audioControllerRef.current?.stopIntervalTrack();
+      return;
+    }
+
+    const preferredRadioCandidate =
+      selectedRadioCandidateIdRef.current === null
+        ? null
+        : activeRadioCandidatesRef.current.find(
+            (candidate) => candidate.id === selectedRadioCandidateIdRef.current
+          ) ?? null;
+
+    audioControllerRef.current
+      ?.startIntervalTrack(settings, currentInterval, {
+        preferredRadioCandidate,
+        onRadioCandidatesResolved: (candidates) => {
+          setActiveRadioCandidates((previous) => {
+            const previousIds = previous.map((candidate) => candidate.id).join("|");
+            const nextIds = candidates.map((candidate) => candidate.id).join("|");
+
+            if (previousIds === nextIds) {
+              return previous;
+            }
+
+            return candidates;
+          });
+          setActiveRadioChannelStates(
+            Object.fromEntries(candidates.map((candidate) => [candidate.id, "idle"]))
+          );
+          setSelectedRadioCandidateId((previous) => {
+            if (previous && candidates.some((candidate) => candidate.id === previous)) {
+              return previous;
+            }
+
+            return candidates[0]?.id ?? null;
+          });
+        },
+        onRadioStatusChange: (candidateId, status) => {
+          setActiveRadioChannelStates((previous) => ({
+            ...previous,
+            [candidateId]: status,
+          }));
+        },
+      })
+      .catch(() => undefined);
+
+    return () => {
+      audioControllerRef.current?.stopIntervalTrack();
+    };
+  }, [currentInterval, isPlaying, selectedRadioCandidateId, settings]);
+
+  useEffect(() => {
+    if (!isPlaying || currentIntervalIndex === null || remainingSeconds > 0) {
+      return;
+    }
+
+    audioControllerRef.current?.playAlarm(settings).catch(() => undefined);
+
+    const nextIndex = currentIntervalIndex + 1;
+
+    if (nextIndex >= intervals.length) {
+      completeSession();
+      return;
+    }
+
+    const nextInterval = intervals[nextIndex];
+    activateInterval(nextIndex, shouldAutoStartInterval(nextInterval));
+  }, [
+    activateInterval,
+    completeSession,
+    currentIntervalIndex,
+    intervals,
+    isPlaying,
+    remainingSeconds,
+    settings,
+    shouldAutoStartInterval,
+  ]);
+
+  useEffect(() => {
+    if (intervals.length === 0) {
+      clearPlaybackState();
+      return;
+    }
+
+    if (currentIntervalIndex !== null && currentIntervalIndex >= intervals.length) {
+      activateInterval(intervals.length - 1, false);
+    }
+  }, [activateInterval, clearPlaybackState, currentIntervalIndex, intervals.length]);
+
+  useEffect(() => {
+    if (window.electron?.getSettings) {
       window.electron
         .getSettings()
         .then((persistedSettings) => {
-          // 2. O spread {...settings} garante que qualquer valor padrão (hardcoded) seja usado
-          // se não estiver no 'persistedSettings' (útil para novas configurações).
-          setSettings((prev) => ({ ...prev, ...persistedSettings }));
+          setSettings((prev) => mergeSettings(prev, persistedSettings));
         })
         .catch((error) => {
-          console.error("Erro ao carregar configurações do Electron:", error);
-          toast.error("Erro ao carregar configurações salvas.");
+          console.error("Erro ao carregar configuracoes do Electron:", error);
+          toast.error(t("context.settingsLoadError"));
         });
     }
+  }, [t]);
+
+  useEffect(() => {
+    const unsubscribe = window.electron?.onWindowStateChanged?.((windowState) => {
+      setSettings((prev) =>
+        mergeSettings(prev, {
+          clickThroughEnabled: windowState.clickThroughEnabled,
+          windowOpacity: windowState.windowOpacity,
+          minimizeToTray: windowState.minimizeToTray,
+          hotkeys: windowState.hotkeys,
+        })
+      );
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = getLocale(language);
+  }, [language]);
+
+  useEffect(() => {
+    migrateLegacySessionsToElectron().catch((error) => {
+      console.error("Erro ao migrar sessoes legadas para o Electron:", error);
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      audioControllerRef.current?.dispose();
+    };
   }, []);
 
   return (
@@ -186,15 +559,32 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
         addBreak,
         removeInterval,
         currentIntervalIndex,
-        setCurrentIntervalIndex,
+        currentInterval,
+        remainingSeconds,
         isBreak,
         toggleBreak,
         isPlaying,
         playerActive,
-        togglePlay,
-        togglePlayer,
+        isSessionComplete,
+        startPlayer,
+        pausePlayer,
+        resumePlayer,
+        resetPlayer,
+        goToNextInterval,
+        goToPreviousInterval,
+        activeRadioCandidates,
+        activeRadioChannelIndex:
+          activeRadioChannelIndex >= 0 ? activeRadioChannelIndex : null,
+        isCurrentIntervalUsingRadio,
+        activeRadioChannelStates,
+        selectRadioChannel,
         settings,
+        language,
+        t,
         updateSettings,
+        toggleWindowClickThrough,
+        minimizeWindow,
+        closeWindow,
         currentPage,
         setPage,
       }}
@@ -206,6 +596,10 @@ export const PomoProvider = ({ children }: { children: ReactNode }) => {
 
 export const usePomo = () => {
   const context = useContext(PomoContext);
-  if (!context) throw new Error("usePomo must be used within PomoProvider");
+
+  if (!context) {
+    throw new Error("usePomo must be used within PomoProvider");
+  }
+
   return context;
 };

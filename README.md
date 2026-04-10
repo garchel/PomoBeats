@@ -1,69 +1,59 @@
-# React + TypeScript + Vite
+﻿# PomoBeats
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+PomoBeats e um app desktop-first para montar sessoes de estudo personalizadas com blocos de foco e pausa em qualquer sequencia.
 
-Currently, two official plugins are available:
+## O que ja funciona
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- criar uma sessao com titulo e uma sequencia customizada de intervalos
+- alternar entre blocos de `pomo` e `break`
+- salvar sessoes localmente
+- listar, carregar e excluir sessoes salvas
+- exportar a sessao atual em JSON
+- importar uma sessao JSON com tratamento de conflito por sufixo no titulo
+- executar a sessao no player com contagem regressiva
+- avancar automaticamente ou pausar no proximo intervalo conforme as configuracoes
+- persistir configuracoes no Electron store
 
-## Expanding the ESLint configuration
+## Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS
+- Framer Motion
+- Electron
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Como rodar
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Para rodar a interface com Electron em desenvolvimento:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm start
 ```
+
+## Fluxo principal do produto
+
+1. Monte a sessao na tela principal adicionando os periodos desejados.
+2. Salve a sessao para reutilizar depois.
+3. Exporte a sessao atual se quiser compartilhar ou fazer backup.
+4. Importe uma sessao pela tela de sessoes salvas.
+5. Inicie o player e acompanhe a sequencia completa dos intervalos.
+
+## Persistencia atual
+
+- sessoes: `localStorage`
+- configuracoes: `electron-store`
+
+Essa divisao e intencional para a primeira versao estavel. Depois que o fluxo principal estiver consolidado, a migracao das sessoes para Electron-backed storage deve ser reavaliada.
+
+## Proximos passos
+
+- revisar a migracao planejada das sessoes para Electron
+- evoluir a UX do player concluido
+- melhorar importacao/exportacao com mais feedback visual
+- adicionar testes automatizados para o fluxo principal

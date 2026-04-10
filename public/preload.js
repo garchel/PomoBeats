@@ -1,18 +1,30 @@
-const { contextBridge, ipcRenderer } = require("electron");
+import { contextBridge, ipcRenderer } from "electron";
 
-const settingsAPI = {
-  // Função que chama o ipcMain.handle('get-settings')
-  getSettings: () => ipcRenderer.invoke('get-settings'),
+contextBridge.exposeInMainWorld("electron", {
+  getSettings: () => ipcRenderer.invoke("get-settings"),
+  setSettings: (settings) => ipcRenderer.invoke("set-settings", settings),
+  getWindowState: () => ipcRenderer.invoke("get-window-state"),
+  toggleClickThrough: () => ipcRenderer.invoke("toggle-click-through"),
+  focusMainWindow: () => ipcRenderer.invoke("focus-main-window"),
+  minimizeMainWindow: () => ipcRenderer.invoke("minimize-main-window"),
+  closeMainWindow: () => ipcRenderer.invoke("close-main-window"),
+  onWindowStateChanged: (callback) => {
+    if (typeof callback !== "function") {
+      return undefined;
+    }
 
-  // Função que chama o ipcMainhandle('get-settings') e passa o objeto
-  setSettings: (settings) => ipcRenderer.invoke('set-settings', settings),
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on("window-state-changed", listener);
 
-};
-
-// Expôe o objeto 'settingsAPI' no objeto global 'window' do seu React mas sob o nome 'electron'.
-contextBridge.exposeInMainWorld('electron', settingsAPI);
-
-// O seu log original
-window.addEventListener("DOMContentLoaded", () => {
-  console.log("Electron preload carregado e API exposta.");
+    return () => {
+      ipcRenderer.removeListener("window-state-changed", listener);
+    };
+  },
+  getSavedSessions: () => ipcRenderer.invoke("get-saved-sessions"),
+  getSavedSession: (title) => ipcRenderer.invoke("get-saved-session", title),
+  saveSavedSession: (session, metadata) =>
+    ipcRenderer.invoke("save-saved-session", session, metadata),
+  deleteSavedSession: (title) => ipcRenderer.invoke("delete-saved-session", title),
+  replaceSavedSessions: (payload) =>
+    ipcRenderer.invoke("replace-saved-sessions", payload),
 });

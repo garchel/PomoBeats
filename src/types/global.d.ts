@@ -1,16 +1,43 @@
-import { SettingsState } from '../context/PomoContext';
+import type {
+  SavedSessionMetadata,
+  SessionObject,
+  SettingsState,
+  WindowHotkeys,
+} from "./pomo";
 
-interface ElectronAPI {
-    // Função que retorna as configurações. O tipo Promise é porque ipcRenderer.invoke é assíncrono.
-    getSettings: () => Promise<SettingsState>;
-
-    // Função que recebe as configurações a serem salvas.
-    setSettings: (settings: SettingsState) => Promise<void>; // O 'main.js' retorna true, mas podemos tipar como void para simplicidade.
+interface WindowState {
+  clickThroughEnabled: boolean;
+  windowOpacity: number;
+  minimizeToTray: boolean;
+  hotkeys: WindowHotkeys;
 }
 
-// Declara o objeto global 'electron' que será injetado pelo preload script
+interface ElectronAPI {
+  getSettings: () => Promise<SettingsState>;
+  setSettings: (settings: SettingsState) => Promise<void>;
+  getWindowState?: () => Promise<WindowState>;
+  toggleClickThrough?: () => Promise<WindowState>;
+  focusMainWindow?: () => Promise<void>;
+  minimizeMainWindow?: () => Promise<void>;
+  closeMainWindow?: () => Promise<void>;
+  onWindowStateChanged?: (
+    callback: (state: WindowState) => void
+  ) => (() => void) | undefined;
+  getSavedSessions?: () => Promise<SavedSessionMetadata[]>;
+  getSavedSession?: (title: string) => Promise<SessionObject | null>;
+  saveSavedSession?: (
+    session: SessionObject,
+    metadata: SavedSessionMetadata
+  ) => Promise<void>;
+  deleteSavedSession?: (title: string) => Promise<void>;
+  replaceSavedSessions?: (payload: {
+    index: SavedSessionMetadata[];
+    items: Record<string, SessionObject>;
+  }) => Promise<void>;
+}
+
 declare global {
-    interface Window {
-        electron: ElectronAPI;
-    }
+  interface Window {
+    electron?: ElectronAPI;
+  }
 }

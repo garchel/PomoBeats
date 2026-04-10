@@ -1,21 +1,11 @@
-import { useState, useCallback } from "react";
+﻿import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Plus } from "lucide-react";
 import { usePomo } from "../context/PomoContext";
 import toast, { Toaster } from "react-hot-toast";
 
 export default function SessionControl() {
-  const {
-    session,
-    addPomo,
-    addBreak,
-    currentIntervalIndex,
-    isBreak,
-    toggleBreak,
-    playerActive,
-  } = usePomo();
-
-  const intervals = session.intervals;
+  const { addPomo, addBreak, isBreak, toggleBreak, t } = usePomo();
 
   const [name, setName] = useState("");
   const [hours, setHours] = useState(0);
@@ -29,20 +19,16 @@ export default function SessionControl() {
     const totalMinutes = hours * 60 + minutes;
 
     if (!name.trim()) {
-      toast.error(" Digite um nome para a sessão 😅 ✏️");
+      toast.error(
+        isBreak
+          ? t("sessionControl.nameError.break")
+          : t("sessionControl.nameError.pomo")
+      );
       return;
     }
 
     if (totalMinutes < 1) {
-      toast.error("A sessão deve ter ao menos 1 minuto 😅 ⏰", {
-        style: {
-          minWidth: "280px", // largura mínima
-          maxWidth: "400px", // largura máxima
-          whiteSpace: "nowrap", // impede quebra de linha
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        },
-      });
+      toast.error(t("sessionControl.durationError"));
       return;
     }
 
@@ -51,22 +37,30 @@ export default function SessionControl() {
       duration: totalMinutes,
     };
 
-    isBreak? addBreak(newInterval) : addPomo(newInterval)
+    if (isBreak) {
+      addBreak(newInterval);
+    } else {
+      addPomo(newInterval);
+    }
 
     setName("");
     setHours(0);
     setMinutes(0);
     setSelectedPart(null);
     setDurationFocused(false);
-    toast.success("Sessão adicionada com sucesso! 🫡");
-  }, [name, hours, minutes, isBreak, addPomo, addBreak]);
+    toast.success(
+      isBreak
+        ? t("sessionControl.addSuccess.break")
+        : t("sessionControl.addSuccess.pomo")
+    );
+  }, [addBreak, addPomo, hours, isBreak, minutes, name, t]);
 
   const handleKey = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (!selectedPart) return;
 
       if (/^\d$/.test(e.key)) {
-        const num = parseInt(e.key);
+        const num = parseInt(e.key, 10);
         if (selectedPart === "hours") {
           setHours((prev) => {
             const digits = prev
@@ -90,9 +84,9 @@ export default function SessionControl() {
 
       if (e.key === "Backspace" || e.key === "Delete") {
         if (selectedPart === "hours") {
-          setHours((prev) => parseInt(prev.toString().padStart(2, "0")[0]));
+          setHours((prev) => parseInt(prev.toString().padStart(2, "0")[0], 10));
         } else {
-          setMinutes((prev) => parseInt(prev.toString().padStart(2, "0")[0]));
+          setMinutes((prev) => parseInt(prev.toString().padStart(2, "0")[0], 10));
         }
       }
 
@@ -104,62 +98,38 @@ export default function SessionControl() {
     [selectedPart]
   );
 
-  // Mostrar intervalo ativo
-  if (playerActive && currentIntervalIndex !== null) {
-    const current = intervals[currentIntervalIndex];
-    return (
-      <>
-        <motion.div
-          className="flex flex-col items-center mt-6"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <h2 className="text-lg font-medium text-gray-800">
-            {current.name} | {isBreak ? "break" : "pomo"}
-          </h2>
-          <div className="text-5xl font-bold mt-2">{current.duration}:00</div>
-        </motion.div>
-        <Toaster position="top-center" reverseOrder={false} />
-      </>
-    );
-  }
-
   return (
     <>
       <motion.div
-        className="flex flex-col items-center space-y-4 w-full mb-2  h-[140px]"
+        className="mb-2 flex h-[140px] w-full flex-col items-center space-y-4"
         initial={{ opacity: 0, y: -15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        {/* Toggle Pomo / Break */}
-        <div className="flex items-center space-x-2 mb-8">
+        <div className="mb-8 flex items-center space-x-2">
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`px-4 py-2 rounded-full font-medium transition-colors ${
+            className={`rounded-full px-4 py-2 font-medium transition-colors ${
               !isBreak ? "bg-red-500 text-white" : "bg-gray-200 text-gray-500"
             }`}
             onClick={() => isBreak && toggleBreak()}
           >
-            Pomo
+            {t("sessionControl.pomoButton")}
           </motion.button>
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`px-4 py-2 rounded-full font-medium transition-colors ${
+            className={`rounded-full px-4 py-2 font-medium transition-colors ${
               isBreak ? "bg-orange-500 text-white" : "bg-gray-200 text-gray-500"
             }`}
             onClick={() => !isBreak && toggleBreak()}
           >
-            Break
+            {t("sessionControl.breakButton")}
           </motion.button>
         </div>
 
-        {/* Inputs */}
-        <div className="flex items-center space-x-3 w-full justify-center">
-          {/* Nome da sessão */}
+        <div className="flex w-full items-center justify-center space-x-3">
           <motion.div
             className="relative w-40"
             initial={{ opacity: 0, y: -5 }}
@@ -170,17 +140,23 @@ export default function SessionControl() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="peer w-full border-b-2 py-2 text-gray-800 placeholder-transparent font-medium transition-colors outline-none border-gray-300 focus:border-red-500"
-              placeholder="Nome do período"
+              maxLength={25}
+              className="peer w-full border-b-2 border-gray-300 py-2 font-medium text-gray-800 outline-none transition-colors placeholder-transparent focus:border-red-500"
+              placeholder={
+                isBreak
+                  ? t("sessionControl.nameLabel.break")
+                  : t("sessionControl.nameLabel.pomo")
+              }
             />
-            <label className="absolute left-0 -top-2.5 text-sm transition-all pointer-events-none peer-placeholder-shown:top-2 peer-placeholder-shown:text-gray-400 peer-placeholder-shown:text-base peer-focus:-top-2.5 peer-focus:text-red-500 peer-focus:text-sm">
-              Nome do período
+            <label className="pointer-events-none absolute left-0 -top-2.5 text-sm transition-all peer-placeholder-shown:top-2 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-focus:-top-2.5 peer-focus:text-sm peer-focus:text-red-500">
+              {isBreak
+                ? t("sessionControl.nameLabel.break")
+                : t("sessionControl.nameLabel.pomo")}
             </label>
           </motion.div>
 
-          {/* Duração HH:MM interativa */}
           <motion.div
-            className={`flex space-x-1 text-lg font-semibold border-b-2 px-2 py-1 cursor-text transition-colors ${
+            className={`flex cursor-text space-x-1 border-b-2 px-2 py-1 text-lg font-semibold transition-colors ${
               durationFocused ? "border-red-500" : "border-gray-300"
             }`}
             tabIndex={0}
@@ -195,31 +171,22 @@ export default function SessionControl() {
             transition={{ duration: 0.3 }}
           >
             <span
-              className={`px-1 ${
-                selectedPart === "hours"
-                  ? "bg-red-100 text-red-600 rounded"
-                  : ""
-              }`}
+              className={`px-1 ${selectedPart === "hours" ? "rounded bg-red-100 text-red-600" : ""}`}
               onClick={() => setSelectedPart("hours")}
             >
               {hours.toString().padStart(2, "0")}
             </span>
             <span>:</span>
             <span
-              className={`px-1 ${
-                selectedPart === "minutes"
-                  ? "bg-red-100 text-red-600 rounded"
-                  : ""
-              }`}
+              className={`px-1 ${selectedPart === "minutes" ? "rounded bg-red-100 text-red-600" : ""}`}
               onClick={() => setSelectedPart("minutes")}
             >
               {minutes.toString().padStart(2, "0")}
             </span>
           </motion.div>
 
-          {/* Botão adicionar */}
           <motion.button
-            className="cursor-pointer p-3 bg-gray-100 rounded-full text-red-500 shadow-md hover:bg-gray-200"
+            className="cursor-pointer rounded-full bg-gray-100 p-3 text-red-500 shadow-md hover:bg-gray-200"
             onClick={handleAddInterval}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
@@ -228,8 +195,7 @@ export default function SessionControl() {
           </motion.button>
         </div>
       </motion.div>
-      <Toaster position="top-center" reverseOrder={false} />{" "}
-      {/* ✅ toast container */}
+      <Toaster position="top-center" reverseOrder={false} />
     </>
   );
 }

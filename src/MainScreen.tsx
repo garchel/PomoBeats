@@ -18,35 +18,35 @@ function MainContent() {
         return <SavedListsPanel/>
       case "player":
         return (
-          <>
+          <div className="flex h-full min-h-0 flex-col">
             <PomoPlayer />
-            <SessionPanel />
-          </>
+            <SessionPanel compact />
+          </div>
         ) 
       case "sessionControl":
       default:
         return (
-          <>
+          <div className="flex h-full min-h-0 flex-col">
             <SessionControl />
             <SessionPanel />
-          </>
+          </div>
         );
       }
   }
 
   return (
-    <>
+    <div className="flex h-full w-full flex-col">
       <Header />
-        {renderContent()}
+      <div className="min-h-0 flex-1 pt-3">{renderContent()}</div>
       <BottomNav/>
-    </>
+    </div>
   );
 }
 
 export default function MainScreen() {
   return (
     <PomoProvider>
-      <div className="w-[420px] h-[640px] mx-auto p-4 bg-white rounded-3xl shadow-lg flex flex-col items-center">
+      <div className="flex h-screen w-screen flex-col overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.95),_rgba(241,245,249,0.96)_35%,_rgba(226,232,240,0.98)_100%)] p-3 text-slate-900">
         <MainContent />
       </div>
     </PomoProvider>
